@@ -1,0 +1,10 @@
+{
+  "app_id": "mission-dashboard",
+  "app_name": "Mission Dashboard",
+  "domain": "https://mission-dashboard.leo.gd",
+  "host": "localhost",
+  "port": "3130",
+  "author": "leo",
+  "anthropic": false,
+  "created_on": "Mon Apr  6 09:42:41 PM EDT 2026"
+}
