@@ -4,16 +4,19 @@ import { Conrec } from "./conrec";
 
 const Page = styled.div`
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   align-items: center;
+  align-content: center;
   gap: 10px;
   height: 100vh;
-  padding: 12px;
   background: #000;
   overflow: hidden;
 
   @media (max-width: 900px) {
+    flex-wrap: nowrap;
     flex-direction: column;
+    align-content: stretch;
     justify-content: flex-start;
     height: auto;
     min-height: 100vh;
@@ -99,15 +102,13 @@ function hash(x, y) {
   return (h >>> 0) / 4294967295;
 }
 
-function drawVignette(ctx) {
+function drawVignette(ctx, refH = REF_H) {
   ctx.save();
 
-  // Clip to the rounded screen area
   ctx.beginPath();
-  ctx.roundRect(4, 4, REF_W - 8, REF_H - 8, 20);
+  ctx.roundRect(4, 4, REF_W - 8, refH - 8, 20);
   ctx.clip();
 
-  // Draw a huge black rect around the outside — its shadow bleeds inward
   ctx.shadowColor = "rgba(0, 0, 0, 1)";
   ctx.shadowBlur = 50;
   ctx.shadowOffsetX = 0;
@@ -115,9 +116,8 @@ function drawVignette(ctx) {
   ctx.fillStyle = "rgba(0, 0, 0, 1)";
 
   ctx.beginPath();
-  ctx.rect(-500, -500, REF_W + 1000, REF_H + 1000);
-  // Cut out the inside so only the shadow remains
-  ctx.roundRect(4, 4, REF_W - 8, REF_H - 8, 20);
+  ctx.rect(-500, -500, REF_W + 1000, refH + 1000);
+  ctx.roundRect(4, 4, REF_W - 8, refH - 8, 20);
   ctx.fill("evenodd");
 
   ctx.restore();
@@ -215,7 +215,7 @@ function drawDisplay(ctx, w, h, time) {
   const chartH = REF_H - margin.top - margin.bottom;
 
   const fontSize = 15;
-  const smallFont = 13;
+  const smallFont = 15;
   const headerFont = 17;
 
   ctx.textBaseline = "middle";
@@ -233,7 +233,7 @@ function drawDisplay(ctx, w, h, time) {
   ctx.fillText("1474", REF_W - pad, pad);
 
   // Subheader
-  ctx.font = `${smallFont}px ${FONT}, monospace`;
+  ctx.font = `bold ${smallFont}px ${FONT}, monospace`;
   ctx.textAlign = "left";
   const getSeconds = Math.floor(time * 10) % 60;
   const getMinutes = Math.floor(time * 10 / 60) % 60;
@@ -271,7 +271,7 @@ function drawDisplay(ctx, w, h, time) {
   }
 
   ctx.fillStyle = FG;
-  ctx.font = `${fontSize}px ${FONT}, monospace`;
+  ctx.font = `bold ${fontSize}px ${FONT}, monospace`;
 
   ctx.textAlign = "right";
   const pitchLabels = [90, 60, 30, 0, -30, -60, -90];
@@ -289,7 +289,7 @@ function drawDisplay(ctx, w, h, time) {
   ctx.restore();
 
   ctx.textAlign = "center";
-  ctx.font = `${fontSize}px ${FONT}, monospace`;
+  ctx.font = `bold ${fontSize}px ${FONT}, monospace`;
   const xLabels = [-180, -135, -90, -45, 0, 45, 90, 135, 180];
   for (const yv of xLabels) {
     const x = margin.left + chartW * ((yv + 180) / 360);
@@ -300,7 +300,7 @@ function drawDisplay(ctx, w, h, time) {
   ctx.fillText("YAW", REF_W / 2, margin.top + chartH + 36);
 
   ctx.textAlign = "left";
-  ctx.font = `${smallFont}px ${FONT}, monospace`;
+  ctx.font = `bold ${smallFont}px ${FONT}, monospace`;
   const rightLabels = ["GM", "S2", "S1", "BM"];
   for (let i = 0; i < rightLabels.length; i++) {
     ctx.fillText(
@@ -341,7 +341,7 @@ function drawDisplay(ctx, w, h, time) {
   }
 
   // --- Bottom telemetry ---
-  ctx.font = `${smallFont}px ${FONT}, monospace`;
+  ctx.font = `bold ${smallFont}px ${FONT}, monospace`;
   ctx.fillStyle = FG;
   ctx.textAlign = "left";
 
@@ -445,8 +445,8 @@ let topoCanvas = null;
 const TOPO_SIZE = 2000;
 
 function initTopoCanvas() {
-  const gridStep = 4;
-  const terrainScale = 0.015;
+  const gridStep = 2;
+  const terrainScale = 0.01;
   const cols = Math.ceil(TOPO_SIZE / gridStep) + 1;
   const rows = Math.ceil(TOPO_SIZE / gridStep) + 1;
 
@@ -520,7 +520,7 @@ function drawTopoMap(ctx, w, h, time) {
 
   const pad = 40;
   const fontSize = 15;
-  const smallFont = 13;
+  const smallFont = 15;
   const headerFont = 17;
 
   ctx.textBaseline = "middle";
@@ -605,7 +605,7 @@ function drawTopoMap(ctx, w, h, time) {
   ctx.strokeRect(mapL, mapT, mapW, mapH);
 
   // Bottom telemetry
-  ctx.font = `${smallFont}px ${FONT}, monospace`;
+  ctx.font = `bold ${smallFont}px ${FONT}, monospace`;
   ctx.fillStyle = FG;
   ctx.textAlign = "left";
 
@@ -613,9 +613,194 @@ function drawTopoMap(ctx, w, h, time) {
   const lon = (-80.651 + Math.cos(time * 0.06) * 0.15).toFixed(4);
   const alt = Math.floor(218 + Math.sin(time * 0.2) * 12);
 
-  ctx.fillText(`LAT  ${lat}`, pad, pad + 22);
+  ctx.fillText(`LAT  ${lat}   LON  ${lon}`, pad, pad + 22);
   ctx.textAlign = "right";
-  ctx.fillText(`LON  ${lon}   ALT  ${alt} KM`, REF_W - pad, pad + 22);
+  ctx.fillText(`ALT  ${alt} KM`, REF_W - pad, pad + 22);
+
+  ctx.shadowBlur = 0;
+  drawVignette(ctx);
+
+  ctx.restore();
+}
+
+// --- Systems status display ---
+function drawRadialGauge(ctx, cx, cy, radius, value, label, unit, min, max) {
+  const pct = (value - min) / (max - min);
+  const startAngle = Math.PI * 0.75;
+  const endAngle = Math.PI * 2.25;
+  const range = endAngle - startAngle;
+  const valueAngle = startAngle + pct * range;
+
+  // Outer ring
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+  ctx.lineWidth = 12;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, startAngle, endAngle);
+  ctx.stroke();
+
+  // Value arc — thick glowing band
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
+  ctx.lineWidth = 12;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, startAngle, valueAngle);
+  ctx.stroke();
+
+  // Value text — large centered
+  ctx.fillStyle = FG;
+  ctx.font = `bold 20px ${FONT}, monospace`;
+  ctx.textAlign = "center";
+  ctx.fillText(`${value.toFixed(1)}`, cx, cy - 10);
+
+  // Unit below value
+  ctx.font = `bold 15px ${FONT}, monospace`;
+  ctx.fillStyle = FG;
+  ctx.fillText(unit, cx, cy + 12);
+
+  // Label below gauge
+  ctx.font = `bold 15px ${FONT}, monospace`;
+  ctx.fillStyle = FG;
+  ctx.fillText(label, cx, cy + radius + 16);
+  ctx.fillStyle = FG;
+}
+
+function drawBarSet(ctx, x, y, setW, setH, bar, label) {
+  // Label above
+  ctx.font = `bold 15px ${FONT}, monospace`;
+  ctx.textAlign = "center";
+  ctx.fillStyle = FG;
+  ctx.fillText(label, x + setW / 2, y - 14);
+
+  const pct = (bar.val - bar.min) / (bar.max - bar.min);
+
+  // Border
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x, y, setW, setH);
+
+  // Fill from bottom with inner padding
+  const inPad = 6;
+  const innerW = setW - inPad * 2;
+  const innerH = setH - inPad * 2;
+  const fillH = innerH * Math.min(1, pct);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+  ctx.fillRect(x + inPad, y + inPad + innerH - fillH, innerW, fillH);
+
+  // Value below
+  ctx.font = `bold 15px ${FONT}, monospace`;
+  ctx.textAlign = "center";
+  ctx.fillStyle = FG;
+  ctx.fillText(`${bar.val.toFixed(bar.val >= 100 ? 0 : 1)}%`, x + setW / 2, y + setH + 18);
+}
+
+function drawSystemsStatus(ctx, w, h, time) {
+  ctx.save();
+
+  const sx = w / REF_W;
+  const sy = h / REF_H;
+
+  ctx.scale(sx, sy);
+
+  // Background
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, REF_W, REF_H);
+  ctx.fillStyle = BG;
+  ctx.beginPath();
+  ctx.roundRect(4, 4, REF_W - 8, REF_H - 8, 20);
+  ctx.fill();
+
+  const pad = 40;
+  const headerFont = 17;
+  const smallFont = 15;
+
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = "rgba(255, 255, 255, 1)";
+  ctx.shadowBlur = 10;
+
+  // Header
+  ctx.fillStyle = FG;
+  ctx.font = `bold ${headerFont}px ${FONT}, monospace`;
+  ctx.textAlign = "left";
+  ctx.fillText("S8421C", pad, pad);
+  ctx.textAlign = "center";
+  ctx.fillText("SYSTEMS STATUS", REF_W / 2, pad);
+  ctx.textAlign = "right";
+  ctx.fillText("3706", REF_W - pad, pad);
+
+  // Subheader
+  ctx.font = `bold ${smallFont}px ${FONT}, monospace`;
+  ctx.textAlign = "left";
+  const missionTime = `${Math.floor(time / 3600).toString().padStart(3, "0")}:${Math.floor((time % 3600) / 60).toString().padStart(2, "0")}:${Math.floor(time % 60).toString().padStart(2, "0")}`;
+  ctx.fillText(`MET  ${missionTime}   STATUS  NOMINAL`, pad, pad + 22);
+
+  // Animated values
+  const s = (base, range, speed) => base + Math.sin(time * speed) * range;
+  const c = (base, range, speed) => base + Math.cos(time * speed) * range;
+
+  // --- Layout ---
+  const contentT = pad + 60;
+  const contentB = REF_H - pad;
+  const contentH = contentB - contentT;
+  const contentL = pad;
+  const contentR = REF_W - pad;
+  const contentW = contentR - contentL;
+
+  // Gauges take top ~40%
+  const gaugeZoneH = contentH * 0.35;
+  const gaugeY = contentT + gaugeZoneH / 2 - 15;
+  const gaugeR = Math.min(gaugeZoneH / 2 - 25, 55);
+  const gauges = [
+    { label: "MAIN BATT", unit: "V", val: s(28.4, 0.3, 0.4), min: 20, max: 32 },
+    { label: "AUX BATT", unit: "V", val: s(26.1, 0.5, 0.3), min: 20, max: 32 },
+    { label: "FUEL CELL", unit: "A", val: s(18.7, 1.2, 0.5), min: 0, max: 30 },
+    { label: "CABIN PSI", unit: "PSI", val: s(14.7, 0.2, 0.6), min: 10, max: 20 },
+    { label: "BUS VOLTS", unit: "V", val: s(31.2, 0.4, 0.35), min: 24, max: 36 },
+  ];
+
+  const gaugeSpacing = contentW / gauges.length;
+  for (let i = 0; i < gauges.length; i++) {
+    const gx = contentL + gaugeSpacing * (i + 0.5);
+    const g = gauges[i];
+    drawRadialGauge(ctx, gx, gaugeY, gaugeR, g.val, g.label, g.unit, g.min, g.max);
+  }
+
+  // Bar sets take bottom ~60% in two rows
+  const barZoneT = contentT + gaugeZoneH + 30;
+  const barZoneH = contentB - barZoneT - 30;
+  const barRowH = (barZoneH - 60) / 2;
+  const barSetGap = 16;
+  const numSetsPerRow = 3;
+  const barSetW = (contentW - barSetGap * (numSetsPerRow - 1)) / numSetsPerRow;
+
+  const barSets = [
+    { label: "LOX", bar: { val: s(82.3, 2, 0.2), min: 0, max: 100 } },
+    { label: "LH2", bar: { val: s(68.4, 3, 0.15), min: 0, max: 100 } },
+    { label: "RCS A", bar: { val: s(64.8, 2, 0.22), min: 0, max: 100 } },
+    { label: "RCS B", bar: { val: s(62.3, 1.8, 0.19), min: 0, max: 100 } },
+    { label: "O2", bar: { val: s(95.1, 1, 0.1), min: 0, max: 100 } },
+    { label: "CO2", bar: { val: c(12.2, 3, 0.07), min: 0, max: 100 } },
+    { label: "COOL", bar: { val: s(88.9, 1.5, 0.13), min: 0, max: 100 } },
+    { label: "RAD", bar: { val: s(72.1, 3, 0.09), min: 0, max: 100 } },
+    { label: "H2O", bar: { val: s(71.0, 2.5, 0.12), min: 0, max: 100 } },
+    { label: "WASTE", bar: { val: s(34.2, 4, 0.08), min: 0, max: 100 } },
+    { label: "BUS A", bar: { val: s(92.4, 1, 0.15), min: 0, max: 100 } },
+    { label: "BUS B", bar: { val: s(90.8, 1.2, 0.12), min: 0, max: 100 } },
+  ];
+
+  const numPerRow = 6;
+  const rowGap = 65;
+  const barSetGapH = 20;
+  const barSetW2 = (contentW - barSetGapH * (numPerRow - 1)) / numPerRow;
+  const barZoneH2 = contentB - barZoneT;
+  const numRows = Math.ceil(barSets.length / numPerRow);
+  const barH2 = (barZoneH2 - (numRows - 1) * rowGap - 20) / numRows;
+
+  for (let i = 0; i < barSets.length; i++) {
+    const row = Math.floor(i / numPerRow);
+    const col = i % numPerRow;
+    const bx = contentL + col * (barSetW2 + barSetGapH);
+    const by = barZoneT + row * (barH2 + rowGap);
+    drawBarSet(ctx, bx, by, barSetW2, barH2, barSets[i].bar, barSets[i].label);
+  }
 
   ctx.shadowBlur = 0;
   drawVignette(ctx);
@@ -626,14 +811,17 @@ function drawTopoMap(ctx, w, h, time) {
 function App() {
   const canvasRef1 = useRef(null);
   const canvasRef2 = useRef(null);
+  const canvasRef3 = useRef(null);
   const animRef = useRef(null);
   const startTime = useRef(Date.now());
 
   useEffect(() => {
     const c1 = canvasRef1.current;
     const c2 = canvasRef2.current;
+    const c3 = canvasRef3.current;
     const ctx1 = c1.getContext("2d");
     const ctx2 = c2.getContext("2d");
+    const ctx3 = c3.getContext("2d");
     const dpr = window.devicePixelRatio || 1;
 
     const resize = () => {
@@ -648,7 +836,7 @@ function App() {
         const totalW = window.innerWidth - gap * 2;
         dispW = (totalW - gap) / 2;
         dispH = dispW * 0.78;
-        const maxH = window.innerHeight - 24;
+        const maxH = (window.innerHeight - gap * 3) / 2;
         if (dispH > maxH) {
           dispH = maxH;
           dispW = dispH / 0.78;
@@ -661,15 +849,27 @@ function App() {
         canvas.width = dispW * dpr;
         canvas.height = dispH * dpr;
       }
+
+      for (const canvas of [c3]) {
+        canvas.style.width = `${dispW}px`;
+        canvas.style.height = `${dispH}px`;
+        canvas.width = dispW * dpr;
+        canvas.height = dispH * dpr;
+      }
     };
 
     resize();
     window.addEventListener("resize", resize);
 
+    let lastSystemsDraw = 0;
     const draw = () => {
       const elapsed = (Date.now() - startTime.current) / 1000;
       drawDisplay(ctx1, c1.width, c1.height, elapsed);
       drawTopoMap(ctx2, c2.width, c2.height, elapsed);
+      if (elapsed - lastSystemsDraw > 0.25) {
+        drawSystemsStatus(ctx3, c3.width, c3.height, elapsed);
+        lastSystemsDraw = elapsed;
+      }
       animRef.current = requestAnimationFrame(draw);
     };
 
@@ -694,6 +894,10 @@ function App() {
       </Monitor>
       <Monitor>
         <Canvas ref={canvasRef2} />
+        <Noise />
+      </Monitor>
+      <Monitor>
+        <Canvas ref={canvasRef3} />
         <Noise />
       </Monitor>
     </Page>
