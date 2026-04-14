@@ -810,35 +810,38 @@ function App() {
   const animRef = useRef(null);
   const startTime = useRef(Date.now());
 
+  const params = new URLSearchParams(window.location.search);
+  const screenParam = params.get("screen");
+  const visibleScreens = screenParam ? [parseInt(screenParam)] : [1, 2, 3];
+
   useEffect(() => {
-    const c1 = canvasRef1.current;
-    const c2 = canvasRef2.current;
-    const c3 = canvasRef3.current;
-    const ctx1 = c1.getContext("2d");
-    const ctx2 = c2.getContext("2d");
-    const ctx3 = c3.getContext("2d");
+    const canvases = [];
+    const contexts = [];
+    if (visibleScreens.includes(1)) { canvases.push(canvasRef1.current); contexts.push({ ctx: canvasRef1.current.getContext("2d"), draw: drawDisplay }); }
+    if (visibleScreens.includes(2)) { canvases.push(canvasRef2.current); contexts.push({ ctx: canvasRef2.current.getContext("2d"), draw: drawTopoMap }); }
+    if (visibleScreens.includes(3)) { canvases.push(canvasRef3.current); contexts.push({ ctx: canvasRef3.current.getContext("2d"), draw: drawSystemsStatus }); }
+
     const dpr = window.devicePixelRatio || 1;
+    const screenCount = canvases.length;
 
     const resize = () => {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       let dispW, dispH;
 
-      const isKiosk = new URLSearchParams(window.location.search).get("kiosk") === "true";
+      const isKiosk = params.get("kiosk") === "true";
       const isMobile = vw <= 600;
       const gap = isMobile ? 10 : 64;
 
       if (isKiosk) {
-        // Fit all 3 screens within viewport height
-        dispH = (vh - gap * 2 - gap * 2) / 3;
+        dispH = (vh - gap * 2 - gap * (screenCount - 1)) / screenCount;
         dispW = dispH / (REF_H / REF_W);
       } else {
-        // Fill width, capped at 1440
         dispW = Math.min(vw - gap * 2, 768);
         dispH = dispW * (REF_H / REF_W);
       }
 
-      for (const canvas of [c1, c2, c3]) {
+      for (const canvas of canvases) {
         canvas.style.width = `${dispW}px`;
         canvas.style.height = `${dispH}px`;
         canvas.width = dispW * dpr;
@@ -852,11 +855,15 @@ function App() {
     let lastSystemsDraw = 0;
     const draw = () => {
       const elapsed = (Date.now() - startTime.current) / 1000;
-      drawDisplay(ctx1, c1.width, c1.height, elapsed);
-      drawTopoMap(ctx2, c2.width, c2.height, elapsed);
-      if (elapsed - lastSystemsDraw > 0.25) {
-        drawSystemsStatus(ctx3, c3.width, c3.height, elapsed);
-        lastSystemsDraw = elapsed;
+      for (const { ctx, draw: drawFn } of contexts) {
+        if (drawFn === drawSystemsStatus) {
+          if (elapsed - lastSystemsDraw > 0.25) {
+            drawFn(ctx, ctx.canvas.width, ctx.canvas.height, elapsed);
+            lastSystemsDraw = elapsed;
+          }
+        } else {
+          drawFn(ctx, ctx.canvas.width, ctx.canvas.height, elapsed);
+        }
       }
       animRef.current = requestAnimationFrame(draw);
     };
@@ -876,18 +883,9 @@ function App() {
           <feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="4" stitchTiles="stitch" />
         </filter>
       </svg>
-      <Monitor>
-        <Canvas ref={canvasRef1} />
-        <Noise />
-      </Monitor>
-      <Monitor>
-        <Canvas ref={canvasRef2} />
-        <Noise />
-      </Monitor>
-      <Monitor>
-        <Canvas ref={canvasRef3} />
-        <Noise />
-      </Monitor>
+      {visibleScreens.includes(1) && <Monitor><Canvas ref={canvasRef1} /><Noise /></Monitor>}
+      {visibleScreens.includes(2) && <Monitor><Canvas ref={canvasRef2} /><Noise /></Monitor>}
+      {visibleScreens.includes(3) && <Monitor><Canvas ref={canvasRef3} /><Noise /></Monitor>}
     </Page>
   );
 }
