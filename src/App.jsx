@@ -4,28 +4,18 @@ import { Conrec } from "./conrec";
 
 const Page = styled.div`
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
-  align-content: center;
-  gap: 10px;
-  height: 100vh;
+  gap: 64px;
+  min-height: 100vh;
+  padding: 64px;
   background: #000;
-  overflow: hidden;
+  overflow: auto;
 
-  @media (max-width: 900px) {
-    flex-wrap: nowrap;
-    flex-direction: column;
-    align-content: stretch;
-    justify-content: flex-start;
-    height: auto;
-    min-height: 100vh;
-    overflow: auto;
-    padding: 16px 0;
-  }
-
-  @media (max-width: 480px) {
-    padding: 8px 0;
+  @media (max-width: 600px) {
+    gap: 10px;
+    padding: 10px;
   }
 `;
 
@@ -87,7 +77,7 @@ const Noise = styled.div`
   mix-blend-mode: overlay;
 `;
 
-const FONT = "IBMPlexMono";
+const FONT = "IBM Plex Mono";
 const BG = "#1A7EB8";
 const FG = "#FFFFFF";
 const GRID = "rgba(255, 255, 255, 0.45)";
@@ -102,7 +92,7 @@ function hash(x, y) {
   return (h >>> 0) / 4294967295;
 }
 
-function drawVignette(ctx, refH = REF_H) {
+function drawVignette(ctx, refH = REF_H, scale = 1) {
   ctx.save();
 
   ctx.beginPath();
@@ -110,7 +100,7 @@ function drawVignette(ctx, refH = REF_H) {
   ctx.clip();
 
   ctx.shadowColor = "rgba(0, 0, 0, 1)";
-  ctx.shadowBlur = 50;
+  ctx.shadowBlur = 50 * scale;
   ctx.shadowOffsetX = 0;
   ctx.shadowOffsetY = 0;
   ctx.fillStyle = "rgba(0, 0, 0, 1)";
@@ -197,6 +187,7 @@ function drawDisplay(ctx, w, h, time) {
   // Scale to fit reference resolution
   const sx = w / REF_W;
   const sy = h / REF_H;
+  const scale = Math.min(sx, sy);
 
   // Scale all drawing to reference coords
   ctx.scale(sx, sy);
@@ -220,7 +211,7 @@ function drawDisplay(ctx, w, h, time) {
 
   ctx.textBaseline = "middle";
   ctx.shadowColor = "rgba(255, 255, 255, 1)";
-  ctx.shadowBlur = 10;
+  ctx.shadowBlur = 10 * scale;
 
   // --- Header ---
   ctx.fillStyle = FG;
@@ -435,7 +426,7 @@ function drawDisplay(ctx, w, h, time) {
   ctx.fillText(animVal(262, 10), rc2, bottomY + lineH * 7);
 
   ctx.shadowBlur = 0;
-  drawVignette(ctx);
+  drawVignette(ctx, REF_H, scale);
 
   ctx.restore();
 }
@@ -489,7 +480,7 @@ function initTopoCanvas() {
     const levelIdx = parseInt(path.k);
     const isMajor = (levelIdx + 1) % 4 === 0;
 
-    tctx.strokeStyle = isMajor ? "rgba(255, 255, 255, 0.85)" : "rgba(255, 255, 255, 0.35)";
+    tctx.strokeStyle = "rgba(255, 255, 255, 0.55)";
     tctx.lineWidth = isMajor ? 1.4 : 0.5;
 
     tctx.beginPath();
@@ -506,6 +497,7 @@ function drawTopoMap(ctx, w, h, time) {
 
   const sx = w / REF_W;
   const sy = h / REF_H;
+  const scale = Math.min(sx, sy);
 
   // Scale all drawing to reference coords
   ctx.scale(sx, sy);
@@ -525,7 +517,7 @@ function drawTopoMap(ctx, w, h, time) {
 
   ctx.textBaseline = "middle";
   ctx.shadowColor = "rgba(255, 255, 255, 1)";
-  ctx.shadowBlur = 10;
+  ctx.shadowBlur = 10 * scale;
 
   // Map area
   const mapL = pad;
@@ -571,9 +563,11 @@ function drawTopoMap(ctx, w, h, time) {
   // Init offscreen canvas once
   if (!topoCanvas) initTopoCanvas();
 
-  // Slowly pan over the precomputed map
-  const panX = (time * 8) % (TOPO_SIZE - mapW);
-  const panY = (time * 4) % (TOPO_SIZE - mapH);
+  // Diagonal pan with subtle wavering
+  const drift = TOPO_SIZE - mapW;
+  const driftY = TOPO_SIZE - mapH;
+  const panX = (time * 8 + Math.sin(time * 0.13) * 15 + Math.sin(time * 0.37) * 8) % drift;
+  const panY = (time * 4 + Math.cos(time * 0.09) * 12 + Math.cos(time * 0.29) * 6) % driftY;
 
   // Blit the prerendered contour map
   ctx.drawImage(topoCanvas, panX, panY, mapW, mapH, mapL, mapT, mapW, mapH);
@@ -609,16 +603,16 @@ function drawTopoMap(ctx, w, h, time) {
   ctx.fillStyle = FG;
   ctx.textAlign = "left";
 
-  const lat = (28.524 + Math.sin(time * 0.08) * 0.12).toFixed(4);
-  const lon = (-80.651 + Math.cos(time * 0.06) * 0.15).toFixed(4);
-  const alt = Math.floor(218 + Math.sin(time * 0.2) * 12);
+  const lat = (28.524 + Math.sin(time * 0.08) * 0.12 + Math.sin(time * 0.21) * 0.04 + Math.sin(time * 0.47) * 0.015).toFixed(4);
+  const lon = (-80.651 + Math.cos(time * 0.06) * 0.15 + Math.cos(time * 0.17) * 0.05 + Math.cos(time * 0.39) * 0.018).toFixed(4);
+  const alt = Math.floor(218 + Math.sin(time * 0.2) * 12 + Math.sin(time * 0.53) * 4);
 
   ctx.fillText(`LAT  ${lat}   LON  ${lon}`, pad, pad + 22);
   ctx.textAlign = "right";
   ctx.fillText(`ALT  ${alt} KM`, REF_W - pad, pad + 22);
 
   ctx.shadowBlur = 0;
-  drawVignette(ctx);
+  drawVignette(ctx, REF_H, scale);
 
   ctx.restore();
 }
@@ -697,6 +691,7 @@ function drawSystemsStatus(ctx, w, h, time) {
 
   const sx = w / REF_W;
   const sy = h / REF_H;
+  const scale = Math.min(sx, sy);
 
   ctx.scale(sx, sy);
 
@@ -714,7 +709,7 @@ function drawSystemsStatus(ctx, w, h, time) {
 
   ctx.textBaseline = "middle";
   ctx.shadowColor = "rgba(255, 255, 255, 1)";
-  ctx.shadowBlur = 10;
+  ctx.shadowBlur = 10 * scale;
 
   // Header
   ctx.fillStyle = FG;
@@ -803,7 +798,7 @@ function drawSystemsStatus(ctx, w, h, time) {
   }
 
   ctx.shadowBlur = 0;
-  drawVignette(ctx);
+  drawVignette(ctx, REF_H, scale);
 
   ctx.restore();
 }
@@ -825,32 +820,25 @@ function App() {
     const dpr = window.devicePixelRatio || 1;
 
     const resize = () => {
-      const isVertical = window.innerWidth <= 900;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
       let dispW, dispH;
 
-      if (isVertical) {
-        dispW = window.innerWidth * 0.96;
-        dispH = dispW * (REF_H / REF_W);
+      const isKiosk = new URLSearchParams(window.location.search).get("kiosk") === "true";
+      const isMobile = vw <= 600;
+      const gap = isMobile ? 10 : 64;
+
+      if (isKiosk) {
+        // Fit all 3 screens within viewport height
+        dispH = (vh - gap * 2 - gap * 2) / 3;
+        dispW = dispH / (REF_H / REF_W);
       } else {
-        const gap = 10;
-        const totalW = window.innerWidth - gap * 2;
-        dispW = (totalW - gap) / 2;
-        dispH = dispW * 0.78;
-        const maxH = (window.innerHeight - gap * 3) / 2;
-        if (dispH > maxH) {
-          dispH = maxH;
-          dispW = dispH / 0.78;
-        }
+        // Fill width, capped at 1440
+        dispW = Math.min(vw - gap * 2, 768);
+        dispH = dispW * (REF_H / REF_W);
       }
 
-      for (const canvas of [c1, c2]) {
-        canvas.style.width = `${dispW}px`;
-        canvas.style.height = `${dispH}px`;
-        canvas.width = dispW * dpr;
-        canvas.height = dispH * dpr;
-      }
-
-      for (const canvas of [c3]) {
+      for (const canvas of [c1, c2, c3]) {
         canvas.style.width = `${dispW}px`;
         canvas.style.height = `${dispH}px`;
         canvas.width = dispW * dpr;
